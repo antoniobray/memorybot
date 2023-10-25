@@ -20,6 +20,7 @@ interface Config {
   currentVectorStoreDatabasePath: string;
   numContextDocumentsToRetrieve: number;
   numMemoryDocumentsToRetrieve: number;
+  numAudioConeDocumentsToRetrieve: number;
   useWindowMemory: boolean;
   chunkSize: number;
   chunkOverlap: number;

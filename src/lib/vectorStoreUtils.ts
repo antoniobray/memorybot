@@ -1,4 +1,5 @@
 import { HNSWLib } from 'langchain/vectorstores/hnswlib';
+import { PineconeStore } from 'langchain/vectorstores/pinecone';
 
 /**
  * Retrieves relevant context for the given question by performing a similarity search on the provided vector store.
@@ -15,7 +16,7 @@ import { HNSWLib } from 'langchain/vectorstores/hnswlib';
  * query. The resulting string is trimmed and all newline characters are replaced with spaces.
  */
 async function getRelevantContext(
-  vectorStore: HNSWLib,
+  vectorStore: HNSWLib | PineconeStore,
   sanitizedQuestion: string,
   numDocuments: number
 ): Promise<string> {

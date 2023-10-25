@@ -21,6 +21,7 @@ const defaultConfig: Config = {
   currentVectorStoreDatabasePath: path.join(getProjectRoot(), process.env.VECTOR_STORE_DIR || 'db/default'),
   numContextDocumentsToRetrieve: 4,
   numMemoryDocumentsToRetrieve: 4,
+  numAudioConeDocumentsToRetrieve: 5,
   useWindowMemory: true,
   chunkSize: 700,
   chunkOverlap: 50,

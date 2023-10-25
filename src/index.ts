@@ -21,6 +21,7 @@ import { getContextVectorStore } from './lib/contextManager.js';
 import { getRelevantContext } from './lib/vectorStoreUtils.js';
 import sanitizeInput from './utils/sanitizeInput.js';
 import { getConfig, getProjectRoot } from './config/index.js';
+import { getAudioConeVectorStore } from './lib/audioConeManager.js';
 
 const projectRootDir = getProjectRoot();
 
@@ -80,10 +81,15 @@ while (true) {
   } else {
     const memoryVectorStore = await getMemoryVectorStore();
     const contextVectorStore = await getContextVectorStore();
+    const audioConeVectorStore = await getAudioConeVectorStore();
+
     const question = sanitizeInput(userInput);
     const config = getConfig();
-    const context = await getRelevantContext(contextVectorStore, question, config.numContextDocumentsToRetrieve);
+    let context = await getRelevantContext(contextVectorStore, question, config.numContextDocumentsToRetrieve);
     const history = await getRelevantContext(memoryVectorStore, question, config.numMemoryDocumentsToRetrieve);
+    const audioCone = await getRelevantContext(audioConeVectorStore, question, config.numAudioConeDocumentsToRetrieve);
+    context = context.concat(audioCone) 
+
     try {
       response = await chain.call({
         input: question,
