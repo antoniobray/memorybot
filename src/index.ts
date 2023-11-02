@@ -11,16 +11,22 @@ respectively. */
 import { stdin as input, stdout as output } from 'node:process';
 import { CallbackManager } from 'langchain/callbacks';
 import { ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate } from 'langchain/prompts';
-import { LLMChain } from 'langchain/chains';
+import { RunnableSequence } from "langchain/schema/runnable";
+import { AgentExecutor } from "langchain/agents";
+import { AgentStep, BaseMessage } from "langchain/schema";
+import { ReActSingleInputOutputParser } from "langchain/agents/react/output_parser";
 import { oneLine } from 'common-tags';
 import chalk from 'chalk';
 import logChat from './chatLogger.js';
 import createCommandHandler from './commands.js';
 import { getMemoryVectorStore, addDocumentsToMemoryVectorStore, getBufferWindowMemory } from './lib/memoryManager.js';
-import { getContextVectorStore } from './lib/contextManager.js';
 import { getRelevantContext } from './lib/vectorStoreUtils.js';
 import sanitizeInput from './utils/sanitizeInput.js';
 import { getConfig, getProjectRoot } from './config/index.js';
+import { Serper } from 'langchain/tools';
+import { Calculator } from 'langchain/tools/calculator';
+import { renderTextDescription } from 'langchain/tools/render';
+import { formatLogToString } from 'langchain/agents/format_scratchpad/log';
 
 const projectRootDir = getProjectRoot();
 
@@ -51,6 +57,9 @@ const llm = new OpenAIChat({
   callbackManager,
   modelName: process.env.MODEL || 'gpt-3.5-turbo',
 });
+const modelWithStop = llm.bind({
+  stop: ["\nObservation"],
+});
 
 const systemPrompt = SystemMessagePromptTemplate.fromTemplate(oneLine`
   ${systemPromptTemplate}
@@ -63,11 +72,64 @@ const chatPrompt = ChatPromptTemplate.fromPromptMessages([
 
 const windowMemory = getBufferWindowMemory();
 
-const chain = new LLMChain({
-  prompt: chatPrompt,
-  memory: windowMemory,
-  llm,
+// const chain = new LLMChain({
+//   prompt: chatPrompt,
+//   memory: windowMemory,
+//   llm,
+// });
+
+
+const tools = [
+  new Serper(process.env.SERPER_API_KEY, {
+    hl: "en",
+  }),
+  new Calculator(),
+];
+
+const toolNames = tools.map((tool) => tool.name);
+const promptWithInputs = await chatPrompt.partial({
+  tools: renderTextDescription(tools),
+  tool_names: toolNames.join(","),
 });
+
+const runnableAgent = RunnableSequence.from([
+  {
+    input: (i: {
+      input: string;
+      history: string;
+      steps: AgentStep[];
+      chat_history: BaseMessage[];
+    }) => i.input,
+    agent_scratchpad: (i: {
+      input: string;
+      history: string;
+      steps: AgentStep[];
+      chat_history: BaseMessage[];
+    }) => formatLogToString(i.steps),
+    history: (i: {
+      input: string;
+      history: string;
+      steps: AgentStep[];
+      chat_history: BaseMessage[];
+    }) => i.history,
+    chat_history: (i: {
+      input: string;
+      history: string;
+      steps: AgentStep[];
+      chat_history: BaseMessage[];
+    }) => i.chat_history,
+  },
+  promptWithInputs,
+  modelWithStop,
+  new ReActSingleInputOutputParser({ toolNames }),
+]);
+const executor = AgentExecutor.fromAgentAndTools({
+  agent: runnableAgent,
+  tools,
+  memory: windowMemory,
+  verbose: false
+});
+
 
 // eslint-disable-next-line no-constant-condition
 while (true) {
@@ -79,24 +141,24 @@ while (true) {
     await commandHandler.execute(command, args, output);
   } else {
     const memoryVectorStore = await getMemoryVectorStore();
-    const contextVectorStore = await getContextVectorStore();
+
     const question = sanitizeInput(userInput);
     const config = getConfig();
-    const context = await getRelevantContext(contextVectorStore, question, config.numContextDocumentsToRetrieve);
     const history = await getRelevantContext(memoryVectorStore, question, config.numMemoryDocumentsToRetrieve);
+
     try {
-      response = await chain.call({
+
+      response = await executor.call({
         input: question,
-        context,
         history,
-        immediate_history: config.useWindowMemory ? windowMemory : '',
-      });
+      })
+
       if (response) {
         await addDocumentsToMemoryVectorStore([
           { content: question, metadataType: 'question' },
-          { content: response.text, metadataType: 'answer' },
+          { content: response.output, metadataType: 'answer' },
         ]);
-        await logChat(chatLogDirectory, question, response.response);
+        await logChat(chatLogDirectory, question, response.output);
       }
     } catch (error) {
       if (error instanceof Error && error.message.includes('Cancel:')) {
