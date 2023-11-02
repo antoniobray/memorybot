@@ -17,7 +17,7 @@ import chalk from 'chalk';
 import logChat from './chatLogger.js';
 import createCommandHandler from './commands.js';
 import { getMemoryVectorStore, addDocumentsToMemoryVectorStore, getBufferWindowMemory } from './lib/memoryManager.js';
-import { getContextVectorStore } from './lib/contextManager.js';
+// import { getContextVectorStore } from './lib/contextManager.js';
 import { getRelevantContext } from './lib/vectorStoreUtils.js';
 import sanitizeInput from './utils/sanitizeInput.js';
 import { getConfig, getProjectRoot } from './config/index.js';
@@ -79,15 +79,15 @@ while (true) {
     await commandHandler.execute(command, args, output);
   } else {
     const memoryVectorStore = await getMemoryVectorStore();
-    const contextVectorStore = await getContextVectorStore();
+    // const contextVectorStore = await getContextVectorStore();
     const question = sanitizeInput(userInput);
     const config = getConfig();
-    const context = await getRelevantContext(contextVectorStore, question, config.numContextDocumentsToRetrieve);
+    // const context = await getRelevantContext(contextVectorStore, question, config.numContextDocumentsToRetrieve);
     const history = await getRelevantContext(memoryVectorStore, question, config.numMemoryDocumentsToRetrieve);
     try {
       response = await chain.call({
         input: question,
-        context,
+        // context,
         history,
         immediate_history: config.useWindowMemory ? windowMemory : '',
       });
@@ -96,7 +96,7 @@ while (true) {
           { content: question, metadataType: 'question' },
           { content: response.text, metadataType: 'answer' },
         ]);
-        await logChat(chatLogDirectory, question, response.response);
+        await logChat(chatLogDirectory, question, response.text);
       }
     } catch (error) {
       if (error instanceof Error && error.message.includes('Cancel:')) {
