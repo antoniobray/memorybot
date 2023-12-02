@@ -16,7 +16,7 @@ import { oneLine } from 'common-tags';
 import chalk from 'chalk';
 import logChat from './chatLogger.js';
 import createCommandHandler from './commands.js';
-import { addDocumentsToMemoryVectorStore, getBufferWindowMemory } from './lib/memoryManager.js';
+import { getMemoryVectorStore, addDocumentsToMemoryVectorStore, getBufferWindowMemory } from './lib/memoryManager.js';
 import { getContextVectorStore } from './lib/contextManager.js';
 import { getRelevantContext } from './lib/vectorStoreUtils.js';
 import sanitizeInput from './utils/sanitizeInput.js';
@@ -79,14 +79,14 @@ while (true) {
     const [command, ...args] = userInput.slice(1).split(' ');
     await commandHandler.execute(command, args, output);
   } else {
-    //const memoryVectorStore = await getMemoryVectorStore();
+    const memoryVectorStore = await getMemoryVectorStore();
     const contextVectorStore = await getContextVectorStore();
     const audioConeVectorStore = await getAudioConeVectorStore();
 
     const question = sanitizeInput(userInput);
     const config = getConfig();
     let context = await getRelevantContext(contextVectorStore, question, config.numContextDocumentsToRetrieve);
-    //const history = await getRelevantContext(memoryVectorStore, question, config.numMemoryDocumentsToRetrieve);
+    const history = await getRelevantContext(memoryVectorStore, question, config.numMemoryDocumentsToRetrieve);
     const audioCone = await getRelevantContext(audioConeVectorStore, question, config.numAudioConeDocumentsToRetrieve);
     context = context.concat(audioCone) 
 
@@ -94,7 +94,7 @@ while (true) {
       response = await chain.call({
         input: question,
         context,
-        //history,
+        history,
         immediate_history: config.useWindowMemory ? windowMemory : '',
       });
       if (response) {
